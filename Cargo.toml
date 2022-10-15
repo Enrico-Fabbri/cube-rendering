@@ -9,3 +9,5 @@ log = "0.4.17"
 winit = "0.27.4"
 wgpu = "0.14.0"
 pollster = "0.2.5"
+cgmath = "0.18.0"
+bytemuck = { version = "1.12.1", features = ["derive"] }

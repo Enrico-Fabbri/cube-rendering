@@ -27,25 +27,30 @@ impl StoneHearthWindow {
         }
     }
 
-    pub(crate) fn run(mut self, mut state: crate::state::StoneHearthState) {
+    pub(crate) fn run(mut self, mut state: super::state::StoneHearthState) {
         self.event_loop
             .run(move |event, _, control_flow| match event {
                 winit::event::Event::WindowEvent {
                     window_id,
                     ref event,
-                } if window_id == self.window.id() => match event {
-                    winit::event::WindowEvent::CloseRequested => {
-                        *control_flow = winit::event_loop::ControlFlow::Exit
+                } if window_id == self.window.id() => {
+                    if !state.input(event) {
+                        match event {
+                            winit::event::WindowEvent::CloseRequested => {
+                                *control_flow = winit::event_loop::ControlFlow::Exit
+                            }
+                            winit::event::WindowEvent::Resized(new_size) => {
+                                self.size = *new_size;
+                                state.resize(new_size);
+                            }
+                            winit::event::WindowEvent::ScaleFactorChanged {
+                                new_inner_size,
+                                ..
+                            } => state.resize(*new_inner_size),
+                            _ => {}
+                        }
                     }
-                    winit::event::WindowEvent::Resized(new_size) => {
-                        self.size = *new_size;
-                        state.resize(new_size);
-                    }
-                    winit::event::WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(*new_inner_size)
-                    }
-                    _ => {}
-                },
+                }
                 winit::event::Event::RedrawRequested(window_id)
                     if window_id == self.window.id() =>
                 {
