@@ -1,11 +1,19 @@
 pub(crate) struct StoneHearthState {
     pub init: super::init::InitWgpu,
+    pub camera: super::camera::Camera,
     pub tile_state: crate::world::tile::TileState,
 }
 
 impl StoneHearthState {
     pub(crate) async fn new(stonehearth_window: &super::window::StoneHearthWindow) -> Self {
         let init = super::init::InitWgpu::init_wgpu(&stonehearth_window.window).await;
+
+        let controller =
+            super::camera::CameraController::new(&init.size, glam::Vec3::new(1.5, 1.0, 3.0));
+        let camera = super::camera::Camera::new(
+            super::camera::CameraData::new(&init.device, &controller),
+            controller,
+        );
 
         let tile_shader = init
             .device
@@ -16,10 +24,18 @@ impl StoneHearthState {
                 ),
             });
 
-        let tile_state =
-            crate::world::tile::TileState::new(&init.device, &tile_shader, &init.config);
+        let tile_state = crate::world::tile::TileState::new(
+            &init.device,
+            &tile_shader,
+            &init.config,
+            &camera.data.bind_group_layout,
+        );
 
-        Self { init, tile_state }
+        Self {
+            init,
+            camera,
+            tile_state,
+        }
     }
 
     pub(crate) fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
@@ -94,6 +110,7 @@ impl StoneHearthState {
 
             render_pass.set_pipeline(&self.tile_state.pipeline);
             render_pass.set_vertex_buffer(0, self.tile_state.vertex_buffer.slice(..));
+            render_pass.set_bind_group(0, &self.camera.data.bind_group, &[]);
             render_pass.set_index_buffer(
                 self.tile_state.index_buffer.slice(..),
                 wgpu::IndexFormat::Uint16,

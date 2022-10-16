@@ -1,8 +1,8 @@
 // Vertex Shader
-//struct Uniforms {
-//    model_view_projection_matrix: mat4x4<f32>
-//}
-//@binding(0) @group(0) var<uniform> uniforms: Uniforms;
+struct Uniforms {
+    model_view_projection_matrix: mat4x4<f32>
+}
+@binding(0) @group(0) var<uniform> uniforms: Uniforms;
 
 struct VertexInput {
     @location(0) position: vec3<f32>, 
@@ -17,7 +17,7 @@ struct VertexOutput {
 @vertex
 fn vs_main(in: VertexInput, ) -> VertexOutput {
     var out: VertexOutput;
-    out.position = vec4<f32>(in.position, 1.0); // uniforms.model_view_projection_matrix * 
+    out.position = uniforms.model_view_projection_matrix * vec4<f32>(in.position, 1.0); 
     out.color = vec4<f32>(in.color, 1.0);
     return out;
 }

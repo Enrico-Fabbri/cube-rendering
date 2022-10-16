@@ -1,115 +1,91 @@
-#![allow(dead_code)]
-use cgmath::*;
-use std::f32::consts::PI;
+use glam::*;
 
-#[rustfmt::skip]
-#[allow(unused)]
-pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.0,
-    0.0, 0.0, 0.5, 1.0,
-);
-
-pub fn create_view(
-    camera_position: Point3<f32>,
-    look_direction: Point3<f32>,
-    up_direction: Vector3<f32>,
-) -> Matrix4<f32> {
-    Matrix4::look_at_rh(camera_position, look_direction, up_direction)
+#[allow(dead_code)]
+pub(crate) struct Transform {
+    pub(crate) scale: Vec3,
+    pub(crate) position: Vec3,
+    pub(crate) rotation: Vec3,
+    pub(crate) speed: Vec3,
 }
 
-pub fn create_projection(aspect: f32, is_perspective: bool) -> Matrix4<f32> {
-    if is_perspective {
-        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
-    } else {
-        OPENGL_TO_WGPU_MATRIX * ortho(-4.0, 4.0, -3.0, 3.0, -1.0, 6.0)
+impl Transform {
+    pub(crate) const IDENTITY: Self = Self {
+        scale: Vec3::ZERO,
+        position: Vec3::ZERO,
+        rotation: Vec3::ZERO,
+        speed: Vec3::ZERO,
+    };
+
+    #[allow(dead_code)]
+    pub(crate) fn from_scale(scale: Vec3) -> Self {
+        Self {
+            scale,
+            ..Self::IDENTITY
+        }
+    }
+
+    pub(crate) fn from_position(position: Vec3) -> Self {
+        Self {
+            position,
+            ..Self::IDENTITY
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn from_rotation(rotation: Vec3) -> Self {
+        Self {
+            rotation,
+            ..Self::IDENTITY
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn from_speed(speed: Vec3) -> Self {
+        Self {
+            speed,
+            ..Self::IDENTITY
+        }
+    }
+
+    pub(crate) fn transform_matrix(&self) -> Mat4 {
+        transform_matrix(self.scale, self.position, self.rotation)
     }
 }
 
-pub fn create_view_projection(
-    camera_position: Point3<f32>,
-    look_direction: Point3<f32>,
-    up_direction: Vector3<f32>,
-    aspect: f32,
-    is_perspective: bool,
-) -> (Matrix4<f32>, Matrix4<f32>, Matrix4<f32>) {
-    // construct view matrix
-    let view_mat = Matrix4::look_at_rh(camera_position, look_direction, up_direction);
-
-    // construct projection matrix
-    let project_mat = if is_perspective {
-        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
-    } else {
-        OPENGL_TO_WGPU_MATRIX * ortho(-4.0, 4.0, -3.0, 3.0, -1.0, 6.0)
-    };
-
-    // contruct view-projection matrix
-    let view_project_mat = project_mat * view_mat;
-
-    // return various matrices
-    (view_mat, project_mat, view_project_mat)
+pub(crate) fn scale_matrix(x: f32, y: f32, z: f32) -> Mat4 {
+    Mat4 {
+        x_axis: Vec4::new(x, 0.0, 0.0, 0.0),
+        y_axis: Vec4::new(0.0, y, 0.0, 0.0),
+        z_axis: Vec4::new(0.0, 0.0, z, 0.0),
+        w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+    }
 }
 
-pub fn create_perspective_projection(
-    fovy: Rad<f32>,
-    aspect: f32,
-    near: f32,
-    far: f32,
-) -> Matrix4<f32> {
-    OPENGL_TO_WGPU_MATRIX * perspective(fovy, aspect, near, far)
+pub(crate) fn translation_matrix(x: f32, y: f32, z: f32) -> Mat4 {
+    Mat4 {
+        x_axis: Vec4::new(1.0, 0.0, 0.0, x),
+        y_axis: Vec4::new(0.0, 1.0, 0.0, y),
+        z_axis: Vec4::new(0.0, 0.0, 1.0, z),
+        w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+    }
 }
 
-pub fn create_projection_ortho(
-    left: f32,
-    right: f32,
-    bottom: f32,
-    top: f32,
-    near: f32,
-    far: f32,
-) -> Matrix4<f32> {
-    OPENGL_TO_WGPU_MATRIX * ortho(left, right, bottom, top, near, far)
+pub(crate) fn rotation_matrix_x(angle: f32) -> Mat4 {
+    Mat4::from_rotation_x(angle)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn create_view_projection_ortho(
-    left: f32,
-    right: f32,
-    bottom: f32,
-    top: f32,
-    near: f32,
-    far: f32,
-    camera_position: Point3<f32>,
-    look_direction: Point3<f32>,
-    up_direction: Vector3<f32>,
-) -> (Matrix4<f32>, Matrix4<f32>, Matrix4<f32>) {
-    // construct view matrix
-    let view_mat = Matrix4::look_at_rh(camera_position, look_direction, up_direction);
-
-    // construct projection matrix
-    let project_mat = OPENGL_TO_WGPU_MATRIX * ortho(left, right, bottom, top, near, far);
-
-    // contruct view-projection matrix
-    let view_project_mat = project_mat * view_mat;
-
-    // return various matrices
-    (view_mat, project_mat, view_project_mat)
+pub(crate) fn rotation_matrix_y(angle: f32) -> Mat4 {
+    Mat4::from_rotation_y(angle)
 }
 
-pub fn create_transforms(
-    translation: [f32; 3],
-    rotation: [f32; 3],
-    scaling: [f32; 3],
-) -> Matrix4<f32> {
-    // create transformation matrices
-    let trans_mat =
-        Matrix4::from_translation(Vector3::new(translation[0], translation[1], translation[2]));
-    let rotate_mat_x = Matrix4::from_angle_x(Rad(rotation[0]));
-    let rotate_mat_y = Matrix4::from_angle_y(Rad(rotation[1]));
-    let rotate_mat_z = Matrix4::from_angle_z(Rad(rotation[2]));
-    let scale_mat = Matrix4::from_nonuniform_scale(scaling[0], scaling[1], scaling[2]);
+pub(crate) fn rotation_matrix_z(angle: f32) -> Mat4 {
+    Mat4::from_rotation_z(angle)
+}
 
-    // combine all transformation matrices together to form a final transform matrix: model matrix
-    // return final model matrix
-    trans_mat * rotate_mat_z * rotate_mat_y * rotate_mat_x * scale_mat
+pub(crate) fn transform_matrix(scale: Vec3, translation: Vec3, rotation: Vec3) -> Mat4 {
+    translation_matrix(translation.x, translation.y, translation.z)
+        * rotation_matrix_z(rotation.z)
+        * rotation_matrix_y(rotation.y)
+        * rotation_matrix_x(rotation.x)
+        * scale_matrix(scale.x, scale.y, scale.z)
 }

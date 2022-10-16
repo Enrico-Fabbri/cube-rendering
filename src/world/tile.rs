@@ -55,10 +55,11 @@ impl TileState {
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
         config: &wgpu::SurfaceConfiguration,
+        camera_bind_froup_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout - TileState"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[camera_bind_froup_layout],
             push_constant_ranges: &[],
         });
 
