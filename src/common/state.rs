@@ -1,6 +1,7 @@
 pub struct State {
     pub window_manager: super::window::WindowManager,
     pub wgpu_manager: super::wgpu::WgpuManager,
+    pub camera_manager: super::camera::CameraManager,
     pub bundle_manager: super::bundles::BundleManager,
 }
 
@@ -10,18 +11,28 @@ impl State {
 
         let wgpu_manager = super::wgpu::WgpuManager::new(&window_manager.window).await;
 
+        let camera_manager =
+            super::camera::CameraManager::new(&wgpu_manager.device, &wgpu_manager.config);
+
         let mut bundle_manager = super::bundles::BundleManager::new();
 
-        crate::world::cubes::Cubes::new(&wgpu_manager.device, &wgpu_manager.config).finish_bundle(
+        crate::world::cubes::Cubes::new(
+            &wgpu_manager.device,
+            &wgpu_manager.config,
+            &camera_manager.camera_bind_group_layout,
+        )
+        .finish_bundle(
             &mut bundle_manager,
             &wgpu_manager.device,
             &wgpu_manager.config,
+            &camera_manager.camera_bind_group,
         );
 
         Self {
             window_manager,
             wgpu_manager,
             bundle_manager,
+            camera_manager,
         }
     }
 
@@ -33,7 +44,7 @@ impl State {
                     ref event,
                     window_id,
                 } if window_id == self.window_manager.window.id() => {
-                    if !self.wgpu_manager.input(event) {
+                    if !self.wgpu_manager.input(event, &mut self.camera_manager) {
                         match event {
                             winit::event::WindowEvent::CloseRequested
                             | winit::event::WindowEvent::KeyboardInput {
@@ -61,7 +72,7 @@ impl State {
                 winit::event::Event::RedrawRequested(window_id)
                     if window_id == self.window_manager.window.id() =>
                 {
-                    self.wgpu_manager.update();
+                    self.wgpu_manager.update(&mut self.camera_manager);
                     match self.wgpu_manager.render(self.bundle_manager.get_bundles()) {
                         Ok(_) => {}
                         // Reconfigure the surface if lost

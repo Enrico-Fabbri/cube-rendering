@@ -31,15 +31,15 @@ impl Vertex {
 const VERTICES: &[Vertex] = &[
     Vertex {
         position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
+        color: [0.12, 0.19, 0.033],
     },
     Vertex {
         position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
+        color: [0.12, 0.19, 0.033],
     },
     Vertex {
         position: [0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
+        color: [0.12, 0.19, 0.033],
     },
 ];
 
@@ -52,7 +52,11 @@ pub struct Cubes {
 }
 
 impl Cubes {
-    pub fn new(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        camera_bind_group_layout: &wgpu::BindGroupLayout,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader - Cubes"),
             source: wgpu::ShaderSource::Wgsl(
@@ -74,7 +78,7 @@ impl Cubes {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout - Cubes"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[camera_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -128,6 +132,7 @@ impl Cubes {
         bundle_manager: &mut crate::common::bundles::BundleManager,
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
+        camera_bind_group: &wgpu::BindGroup,
     ) {
         let mut render_bundle_encoder =
             device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
@@ -139,6 +144,7 @@ impl Cubes {
             });
 
         render_bundle_encoder.set_pipeline(&self.pipeline);
+        render_bundle_encoder.set_bind_group(0, camera_bind_group, &[]);
         render_bundle_encoder.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_bundle_encoder
             .set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);

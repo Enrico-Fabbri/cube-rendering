@@ -61,11 +61,27 @@ impl WgpuManager {
         }
     }
 
-    pub fn input(&mut self, _event: &winit::event::WindowEvent) -> bool {
-        false
+    pub fn input(
+        &mut self,
+        event: &winit::event::WindowEvent,
+        camera_manager: &mut super::camera::CameraManager,
+    ) -> bool {
+        camera_manager.camera_controller.process_events(event)
     }
 
-    pub fn update(&mut self) {}
+    pub fn update(&mut self, camera_manager: &mut super::camera::CameraManager) {
+        camera_manager
+            .camera_controller
+            .update_camera(&mut camera_manager.camera);
+        camera_manager
+            .camera_uniform
+            .update_view_proj(&camera_manager.camera);
+        self.queue.write_buffer(
+            &camera_manager.camera_buffer,
+            0,
+            bytemuck::cast_slice_mut(&mut [camera_manager.camera_uniform]),
+        )
+    }
 
     pub fn render(&mut self, bundles: &[wgpu::RenderBundle]) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
