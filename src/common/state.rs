@@ -1,126 +1,85 @@
-pub(crate) struct StoneHearthState {
-    pub init: super::init::InitWgpu,
-    pub camera: super::camera::Camera,
-    pub tile_state: crate::world::tile::TileState,
+pub struct State {
+    pub window_manager: super::window::WindowManager,
+    pub wgpu_manager: super::wgpu::WgpuManager,
+    pub bundle_manager: super::bundles::BundleManager,
 }
 
-impl StoneHearthState {
-    pub(crate) async fn new(stonehearth_window: &super::window::StoneHearthWindow) -> Self {
-        let init = super::init::InitWgpu::init_wgpu(&stonehearth_window.window).await;
+impl State {
+    pub async fn new() -> Self {
+        let window_manager = super::window::WindowManager::new();
 
-        let controller =
-            super::camera::CameraController::new(&init.size, glam::Vec3::new(1.5, 1.0, 3.0));
-        let camera = super::camera::Camera::new(
-            super::camera::CameraData::new(&init.device, &controller),
-            controller,
-        );
+        let wgpu_manager = super::wgpu::WgpuManager::new(&window_manager.window).await;
 
-        let tile_shader = init
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Tiles Shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../../assets/shaders/tile.wgsl").into(),
-                ),
-            });
+        let mut bundle_manager = super::bundles::BundleManager::new();
 
-        let tile_state = crate::world::tile::TileState::new(
-            &init.device,
-            &tile_shader,
-            &init.config,
-            &camera.data.bind_group_layout,
+        crate::world::cubes::Cubes::new(&wgpu_manager.device, &wgpu_manager.config).finish_bundle(
+            &mut bundle_manager,
+            &wgpu_manager.device,
+            &wgpu_manager.config,
         );
 
         Self {
-            init,
-            camera,
-            tile_state,
+            window_manager,
+            wgpu_manager,
+            bundle_manager,
         }
     }
 
-    pub(crate) fn resize(&mut self, new_size: &winit::dpi::PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.init.config.width = new_size.width;
-            self.init.config.height = new_size.height;
-            self.init
-                .surface
-                .configure(&self.init.device, &self.init.config);
-        }
-    }
-    pub(crate) fn input(&mut self, _event: &winit::event::WindowEvent) -> bool {
-        false
-    }
-
-    pub(crate) fn update(&self) {}
-
-    pub(crate) fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.init.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let depth_texture = self.init.device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: self.init.config.width,
-                height: self.init.config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            label: None,
-        });
-        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder =
-            self.init
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Render Encoder"),
-                });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                // This is what @location(0) in the fragment shader targets
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: false,
-                    }),
-                    stencil_ops: None,
-                }),
+    pub fn run(mut self) {
+        self.window_manager
+            .event_loop
+            .run(move |event, _, control_flow| match event {
+                winit::event::Event::WindowEvent {
+                    ref event,
+                    window_id,
+                } if window_id == self.window_manager.window.id() => {
+                    if !self.wgpu_manager.input(event) {
+                        match event {
+                            winit::event::WindowEvent::CloseRequested
+                            | winit::event::WindowEvent::KeyboardInput {
+                                input:
+                                    winit::event::KeyboardInput {
+                                        state: winit::event::ElementState::Pressed,
+                                        virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
+                                        ..
+                                    },
+                                ..
+                            } => *control_flow = winit::event_loop::ControlFlow::Exit,
+                            winit::event::WindowEvent::Resized(physical_size) => {
+                                self.wgpu_manager.resize(*physical_size);
+                            }
+                            winit::event::WindowEvent::ScaleFactorChanged {
+                                new_inner_size,
+                                ..
+                            } => {
+                                self.wgpu_manager.resize(**new_inner_size);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                winit::event::Event::RedrawRequested(window_id)
+                    if window_id == self.window_manager.window.id() =>
+                {
+                    self.wgpu_manager.update();
+                    match self.wgpu_manager.render(self.bundle_manager.get_bundles()) {
+                        Ok(_) => {}
+                        // Reconfigure the surface if lost
+                        Err(wgpu::SurfaceError::Lost) => {
+                            self.wgpu_manager.resize(self.wgpu_manager.size)
+                        }
+                        // The system is out of memory, we should probably quit
+                        Err(wgpu::SurfaceError::OutOfMemory) => {
+                            *control_flow = winit::event_loop::ControlFlow::Exit
+                        }
+                        // All other errors (Outdated, Timeout) should be resolved by the next frame
+                        Err(e) => eprintln!("{:?}", e),
+                    }
+                }
+                winit::event::Event::MainEventsCleared => {
+                    self.window_manager.window.request_redraw();
+                }
+                _ => {}
             });
-
-            render_pass.set_pipeline(&self.tile_state.pipeline);
-            render_pass.set_vertex_buffer(0, self.tile_state.vertex_buffer.slice(..));
-            render_pass.set_bind_group(0, &self.camera.data.bind_group, &[]);
-            render_pass.set_index_buffer(
-                self.tile_state.index_buffer.slice(..),
-                wgpu::IndexFormat::Uint16,
-            );
-            render_pass.draw_indexed(0..crate::world::tile::TileState::indices_len(), 0, 0..1);
-        }
-
-        self.init.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-
-        Ok(())
     }
 }
