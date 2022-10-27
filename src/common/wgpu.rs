@@ -52,12 +52,23 @@ impl WgpuManager {
         }
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(
+        &mut self,
+        new_size: winit::dpi::PhysicalSize<u32>,
+        bundles_manager: &mut super::bundles::BundleManager,
+        window: &winit::window::Window,
+    ) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            bundles_manager.set_depth_texture(super::texture::Texture::create_depth_texture(
+                &self.device,
+                &self.config,
+                "Depth Texture",
+            ));
+            window.request_redraw();
         }
     }
 
@@ -83,7 +94,11 @@ impl WgpuManager {
         )
     }
 
-    pub fn render(&mut self, bundles: &[wgpu::RenderBundle]) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(
+        &mut self,
+        bundles: &[wgpu::RenderBundle],
+        depth_view: &wgpu::TextureView,
+    ) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -92,7 +107,7 @@ impl WgpuManager {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Edncoder"),
+                label: Some("Render Encoder"),
             });
 
         {
@@ -111,7 +126,14 @@ impl WgpuManager {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
             render_pass.execute_bundles(bundles);

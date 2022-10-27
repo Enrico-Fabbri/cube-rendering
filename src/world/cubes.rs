@@ -5,6 +5,7 @@ use wgpu::util::DeviceExt;
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
+    //color: [f32; 3],
 }
 
 impl Vertex {
@@ -12,11 +13,18 @@ impl Vertex {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                offset: 0,
-                shader_location: 0,
-                format: wgpu::VertexFormat::Float32x3,
-            }],
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                /*wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },*/
+            ],
         }
     }
 }
@@ -51,16 +59,16 @@ const VERTICES: &[Vertex] = &[
 const INDICES: &[u16] = &[
     0, 1, 2, // 1
     0, 2, 3, // 2
-    0, 3, 5, // 3
-    3, 4, 5, // 4
-    5, 4, 6, // 5
-    4, 7, 6, // 6
+    5, 0, 3, // 3
+    5, 3, 4, // 4
+    6, 5, 4, // 5
+    6, 4, 7, // 6
     1, 6, 7, // 7
     1, 7, 2, // 8
-    4, 3, 2, // 9
-    3, 2, 7, // 10
-    0, 5, 1, // 11
-    5, 6, 1, // 12
+    5, 6, 1, // 9
+    5, 1, 0, // 10
+    7, 4, 2, // 11
+    2, 4, 3, // 12
 ];
 
 #[repr(C)]
@@ -98,7 +106,7 @@ impl CubeInstanceRaw {
                     format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 15]>() as wgpu::BufferAddress,
+                    offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
                     shader_location: 9,
                     format: wgpu::VertexFormat::Float32x3,
                 },
@@ -125,11 +133,6 @@ impl CubeInstance {
 }
 
 const NUM_INSTANCES_PER_ROW: u32 = 100;
-const INSTANCE_POSITION_DISPLACEMENT: cgmath::Vector3<f32> = cgmath::Vector3::new(
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-    0.0,
-    NUM_INSTANCES_PER_ROW as f32 * 0.5,
-);
 
 pub struct Cubes {
     pub pipeline: wgpu::RenderPipeline,
@@ -144,6 +147,7 @@ impl Cubes {
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         camera_bind_group_layout: &wgpu::BindGroupLayout,
+        depth_stencil: Option<wgpu::DepthStencilState>,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader - Cubes"),
@@ -182,12 +186,12 @@ impl Cubes {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: Some(wgpu::Face::Front),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil,
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -212,10 +216,10 @@ impl Cubes {
             .flat_map(|z| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
                     let position = cgmath::Vector3 {
-                        x: x as f32,
+                        x: x as f32 * 0.5,
                         y: 0.0,
-                        z: z as f32,
-                    } - INSTANCE_POSITION_DISPLACEMENT;
+                        z: z as f32 * 0.5,
+                    };
 
                     let rotation = if position.is_zero() {
                         cgmath::Quaternion::from_axis_angle(
@@ -223,13 +227,13 @@ impl Cubes {
                             cgmath::Deg(0.0),
                         )
                     } else {
-                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
+                        cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(0.0))
                     };
 
                     let color: cgmath::Vector3<f32> = cgmath::Vector3 {
-                        x: (120 / 255) as f32,
-                        y: (190 / 255) as f32,
-                        z: (33 / 255) as f32,
+                        x: 0.142_763_85,
+                        y: 0.201_978_01,
+                        z: 0.069_961_436,
                     };
 
                     CubeInstance {
@@ -267,12 +271,13 @@ impl Cubes {
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         camera_bind_group: &wgpu::BindGroup,
+        depth_stencil: Option<wgpu::RenderBundleDepthStencil>,
     ) {
         let mut render_bundle_encoder =
             device.create_render_bundle_encoder(&wgpu::RenderBundleEncoderDescriptor {
                 label: Some("Render Bundle Encoder - Cubes"),
                 color_formats: &[Some(config.format)],
-                depth_stencil: None,
+                depth_stencil,
                 sample_count: 1,
                 multiview: None,
             });

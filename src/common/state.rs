@@ -14,18 +14,31 @@ impl State {
         let camera_manager =
             super::camera::CameraManager::new(&wgpu_manager.device, &wgpu_manager.config);
 
-        let mut bundle_manager = super::bundles::BundleManager::new();
+        let mut bundle_manager =
+            super::bundles::BundleManager::new(&wgpu_manager.device, &wgpu_manager.config);
 
         crate::world::cubes::Cubes::new(
             &wgpu_manager.device,
             &wgpu_manager.config,
             &camera_manager.camera_bind_group_layout,
+            Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
         )
         .finish_bundle(
             &mut bundle_manager,
             &wgpu_manager.device,
             &wgpu_manager.config,
             &camera_manager.camera_bind_group,
+            Some(wgpu::RenderBundleDepthStencil {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_read_only: false,
+                stencil_read_only: false,
+            }),
         );
 
         Self {
@@ -57,13 +70,21 @@ impl State {
                                 ..
                             } => *control_flow = winit::event_loop::ControlFlow::Exit,
                             winit::event::WindowEvent::Resized(physical_size) => {
-                                self.wgpu_manager.resize(*physical_size);
+                                self.wgpu_manager.resize(
+                                    *physical_size,
+                                    &mut self.bundle_manager,
+                                    &self.window_manager.window,
+                                );
                             }
                             winit::event::WindowEvent::ScaleFactorChanged {
                                 new_inner_size,
                                 ..
                             } => {
-                                self.wgpu_manager.resize(**new_inner_size);
+                                self.wgpu_manager.resize(
+                                    **new_inner_size,
+                                    &mut self.bundle_manager,
+                                    &self.window_manager.window,
+                                );
                             }
                             _ => {}
                         }
@@ -73,12 +94,17 @@ impl State {
                     if window_id == self.window_manager.window.id() =>
                 {
                     self.wgpu_manager.update(&mut self.camera_manager);
-                    match self.wgpu_manager.render(self.bundle_manager.get_bundles()) {
+                    match self.wgpu_manager.render(
+                        self.bundle_manager.get_bundles(),
+                        self.bundle_manager.get_depth_texture_view(),
+                    ) {
                         Ok(_) => {}
                         // Reconfigure the surface if lost
-                        Err(wgpu::SurfaceError::Lost) => {
-                            self.wgpu_manager.resize(self.wgpu_manager.size)
-                        }
+                        Err(wgpu::SurfaceError::Lost) => self.wgpu_manager.resize(
+                            self.wgpu_manager.size,
+                            &mut self.bundle_manager,
+                            &self.window_manager.window,
+                        ),
                         // The system is out of memory, we should probably quit
                         Err(wgpu::SurfaceError::OutOfMemory) => {
                             *control_flow = winit::event_loop::ControlFlow::Exit
