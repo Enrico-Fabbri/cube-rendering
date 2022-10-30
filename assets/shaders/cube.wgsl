@@ -1,5 +1,4 @@
-// Vertex shader
-
+// Vertex
 struct CameraUniform {
     view_proj: mat4x4<f32>
 };
@@ -10,44 +9,42 @@ struct InstanceInput {
     @location(6) model_matrix_1: vec4<f32>,
     @location(7) model_matrix_2: vec4<f32>,
     @location(8) model_matrix_3: vec4<f32>,
-    @location(9) model_color_0: vec3<f32>,
+}
+
+struct RenderInput {
+    @location(9) model_render: u32,
 }
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @builtin(instance_index) instance_index: u32,
-};
+}
 
 struct VertexOutput {
     @builtin(position) model_position: vec4<f32>,
     // 
     @location(0) color: vec3<f32>,
     @location(1) position: vec3<f32>,
-    @location(2) instance_index: u32,
-};
-
-@vertex
-fn vs_main(
-    model: VertexInput,
-    instance: InstanceInput
-) -> VertexOutput {
-    let model_matrix = mat4x4<f32>(
-        instance.model_matrix_0,
-        instance.model_matrix_1,
-        instance.model_matrix_2,
-        instance.model_matrix_3,
-        );
-
-    var out: VertexOutput;
-
-    out.model_position = camera.view_proj * model_matrix *  vec4<f32>(model.position, 1.0);
-
-    out.color = instance.model_color_0;
-    out.position = model.position;
-    out.instance_index = model.instance_index;
-    return out;
 }
 
+@vertex
+fn vs_main(model: VertexInput, instance: InstanceInput, render: RenderInput) -> VertexOutput {
+    var out: VertexOutput;
+
+    if render.model_render == 1u {   
+        let model_matrix = mat4x4<f32>(
+            instance.model_matrix_0,
+            instance.model_matrix_1,
+            instance.model_matrix_2,
+            instance.model_matrix_3,
+        );
+
+        out.model_position = camera.view_proj * model_matrix *  vec4<f32>(model.position, 1.0);
+        out.color = vec3<f32>(0.3, 0.7, 0.4);
+        out.position = model.position;
+    }
+    
+    return out;
+}
 
 fn is_border(x: f32, y: f32, z: f32, border: f32, dimension: f32) -> bool {
     let min = border;
@@ -71,11 +68,9 @@ fn is_border(x: f32, y: f32, z: f32, border: f32, dimension: f32) -> bool {
     }
 }
 
-// Fragment shader
-
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if is_border(in.position.x, in.position.y, in.position.z, 0.02, 0.5) {
+    if is_border(in.position.x, in.position.y, in.position.z, 0.02, 1.0) {
         return vec4<f32>(in.color.x + 0.1, in.color.y + 0.1, in.color.z + 0.1, 1.0);
     } else {
         return vec4<f32>(in.color, 1.0);

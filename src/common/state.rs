@@ -17,7 +17,7 @@ impl State {
         let mut bundle_manager =
             super::bundles::BundleManager::new(&wgpu_manager.device, &wgpu_manager.config);
 
-        crate::world::cubes::Cubes::new(
+        crate::world::voxel_manager::VoxelManger::new(
             &wgpu_manager.device,
             &wgpu_manager.config,
             &camera_manager.camera_bind_group_layout,
@@ -28,7 +28,10 @@ impl State {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
+            4,
         )
+        .update_map()
+        .update_buffers(&wgpu_manager.device)
         .finish_bundle(
             &mut bundle_manager,
             &wgpu_manager.device,
