@@ -28,7 +28,7 @@ impl State {
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
-            4,
+            8196,
         )
         .update_map()
         .update_buffers(&wgpu_manager.device)

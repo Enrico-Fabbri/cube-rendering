@@ -174,39 +174,6 @@ impl VoxelManger {
             .enumerate()
             .take(self.voxels.len())
         {
-            /*self.voxels[index].instances = vec![
-                FaceInstance {
-                    position: self.voxels[index].instances[0].position,
-                    rotation: self.voxels[index].instances[0].rotation,
-                    render: n[0],
-                },
-                FaceInstance {
-                    position: self.voxels[index].instances[1].position,
-                    rotation: self.voxels[index].instances[1].rotation,
-                    render: n[1],
-                },
-                FaceInstance {
-                    position: self.voxels[index].instances[2].position,
-                    rotation: self.voxels[index].instances[2].rotation,
-                    render: n[2],
-                },
-                FaceInstance {
-                    position: self.voxels[index].instances[3].position,
-                    rotation: self.voxels[index].instances[3].rotation,
-                    render: n[3],
-                },
-                FaceInstance {
-                    position: self.voxels[index].instances[4].position,
-                    rotation: self.voxels[index].instances[4].rotation,
-                    render: n[4],
-                },
-                FaceInstance {
-                    position: self.voxels[index].instances[5].position,
-                    rotation: self.voxels[index].instances[5].rotation,
-                    render: n[5],
-                },
-            ];*/
-
             self.voxels[index].set_faces(
                 Some(n[0]),
                 Some(n[1]),
